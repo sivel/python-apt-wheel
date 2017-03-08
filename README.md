@@ -20,6 +20,10 @@ $ ansible-playbook -i hosts -v python-apt.yml
 
 Wheel files will be downloaded into the `wheelhouse` directory.
 
+## debian_control_file
+
+This is a custom Ansible module that parses a debian packaging control file and provides information from all package paragraphs
+
 ## docker.pex?
 
 To avoid needing to install `docker-py` to work with the Ansible `docker_container` module, a PEX file with `docker-py` installed within is provided to work as the `ansible_python_interpreter` for `docker_container` tasks.
