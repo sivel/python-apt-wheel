@@ -28,4 +28,10 @@ This is a custom Ansible module that parses a debian packaging control file and 
 
 To avoid needing to install `docker-py` to work with the Ansible `docker_container` module, a PEX file with `docker-py` installed within is provided to work as the `ansible_python_interpreter` for `docker_container` tasks.
 
+This file was created using:
+
+```
+$ pex -o docker.pex docker-py
+```
+
 To read more about PEX check out [https://pex.readthedocs.io/en/stable/](https://pex.readthedocs.io/en/stable/)
