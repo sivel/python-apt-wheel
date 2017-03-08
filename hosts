@@ -1,0 +1,2 @@
+python-apt-trusty ansible_connection=docker release=trusty
+python-apt-xenial ansible_connection=docker release=xenial

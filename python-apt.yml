@@ -1,0 +1,137 @@
+---
+- name: Build docker containers
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Build docker container
+      docker_container:
+        name: "{{ inventory_hostname }}"
+        image: "ubuntu:{{ release }}"
+        state: started
+        command: sleep infinity
+      vars:
+        ansible_python_interpreter: "./docker.pex"
+      delegate_to: localhost
+
+- name: Bootstrap docker containers
+  hosts: all
+  gather_facts: false
+  vars:
+    ansible_connection: docker
+    ansible_python_interpreter: /usr/bin/python2.7
+  tasks:
+    - name: Test ansible round trip
+      ping:
+      ignore_errors: true
+      register: ping_test
+
+    - name: Install python
+      raw: apt-get update && apt-get install -y python2.7 python3
+      when: ping_test is failed
+
+- name: Build python-apt wheel files
+  hosts: all
+  gather_facts: false
+  vars:
+    ansible_connection: docker
+    ansible_python_interpreter: /usr/bin/python2.7
+  tasks:
+    - name: Install git and pip
+      apt:
+        name:
+          - git
+          - python-pip
+          - python3-pip
+
+    - name: Install some python2 global deps
+      pip:
+        name:
+          - packaging
+          - appdirs
+        state: latest
+        executable: pip2
+
+    - name: Install some python3 global deps
+      pip:
+        name:
+          - packaging
+          - appdirs
+        state: latest
+        executable: pip3
+
+    - name: Install python2 dependencies
+      pip:
+        name:
+          - pip
+          - wheel
+          - deb_pkg_tools
+          - setuptools
+        executable: pip2
+        state: latest
+
+    - name: Install python3 dependencies
+      pip:
+        name:
+          - wheel
+          - setuptools
+        executable: pip3
+        state: latest
+
+    - name: Clone python-apt updates branch for release
+      git:
+        dest: /python-apt
+        repo: 'https://git.launchpad.net/~usd-import-team/ubuntu/+source/python-apt'
+        version: 'ubuntu/{{ release }}-updates'
+      ignore_errors: true
+      register: updates
+
+    - name: Clone python-apt branch for release
+      git:
+        dest: /python-apt
+        repo: 'https://git.launchpad.net/~usd-import-team/ubuntu/+source/python-apt'
+        version: 'ubuntu/{{ release }}'
+      when: updates is failed
+
+    - name: Parse debian control file to get package and dependency info
+      debian_control_file:
+        path: /python-apt/debian/control
+      register: control
+
+    - name: Install build dependencies
+      apt:
+        name: "{{ control.sources['python-apt']['Build-Depends']}}"
+
+    - name: Build python2 wheel package
+      command: pip2 wheel -w wheelhouse . chdir=/python-apt
+      environment:
+        DEBVER: "{{ control.sources['python-apt']['Standards-Version'] }}"
+
+    - name: Build python3 wheel package
+      command: pip3 wheel -w wheelhouse . chdir=/python-apt
+      environment:
+        DEBVER: "{{ control.sources['python-apt']['Standards-Version'] }}"
+
+    - name: Find built wheel files
+      find:
+        path: /python-apt/wheelhouse
+        patterns: "*.whl"
+      register: wheels
+
+    - name: Fetch the python wheel files
+      fetch:
+        dest: "wheelhouse/{{ item.path|basename }}"
+        src: "{{ item.path }}"
+        flat: true
+      with_items: "{{ wheels.files }}"
+
+- name: Destroy docker containers
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Destroy docker container
+      docker_container:
+        name: "{{ inventory_hostname }}"
+        state: absent
+      vars:
+        ansible_python_interpreter: "./docker.pex"
+      delegate_to: localhost
